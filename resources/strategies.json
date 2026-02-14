@@ -1,0 +1,458 @@
+[
+  {
+    "id": "general",
+    "name": "General (Recommended)",
+    "description": "Default strategy: multisplit for TCP, fake for QUIC/UDP. Works for Discord, YouTube, and most blocked sites.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["windows", "linux", "macos"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "l7Protocol": "discord,stun",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "tcp",
+        "ports": "2053,2083,2087,2096,8443",
+        "hostlistDomains": "discord.media",
+        "desyncMethod": "multisplit",
+        "splitSeqovl": 681,
+        "splitPos": 1,
+        "splitSeqovlPattern": "tls_clienthello_www_google_com.bin"
+      },
+      {
+        "protocol": "tcp",
+        "ports": "443",
+        "hostlist": "list-google.txt",
+        "desyncMethod": "multisplit",
+        "splitSeqovl": 681,
+        "splitPos": 1,
+        "splitSeqovlPattern": "tls_clienthello_www_google_com.bin",
+        "ipIdZero": true
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "multisplit",
+        "splitSeqovl": 568,
+        "splitPos": 1,
+        "splitSeqovlPattern": "tls_clienthello_4pda_to.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "ipset": "ipset-all.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "ipset": "ipset-all.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "multisplit",
+        "splitSeqovl": 568,
+        "splitPos": 1,
+        "splitSeqovlPattern": "tls_clienthello_4pda_to.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "1024-65535",
+        "ipset": "ipset-all.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 12,
+        "anyProtocol": true,
+        "fakeUnknownUdp": "quic_initial_www_google_com.bin",
+        "desyncCutoff": "n2"
+      }
+    ]
+  },
+  {
+    "id": "alt",
+    "name": "ALT (Fake + FakeDSplit)",
+    "description": "Uses fake with fakedsplit and TCP timestamp fooling. Try if General doesn't work.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["windows", "linux"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fooling": "ts",
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "l7Protocol": "discord,stun",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake,fakedsplit",
+        "desyncRepeats": 6,
+        "fooling": "ts",
+        "fakeTls": "tls_clienthello_www_google_com.bin",
+        "splitSeqovlPattern": "tls_clienthello_www_google_com.bin"
+      }
+    ]
+  },
+  {
+    "id": "simple-fake",
+    "name": "Simple Fake",
+    "description": "Simplest approach using only fake packets with TCP timestamp fooling.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["windows", "linux"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fooling": "ts",
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "l7Protocol": "discord,stun",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443,2053,2083,2087,2096,8443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fooling": "ts",
+        "fakeTls": "tls_clienthello_www_google_com.bin"
+      }
+    ]
+  },
+  {
+    "id": "fake-tls-auto",
+    "name": "Fake TLS Auto",
+    "description": "Advanced fake with auto-generated TLS ClientHello and random modifications.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["windows", "linux"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 11,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "l7Protocol": "discord,stun",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443,2053,2083,2087,2096,8443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake,multidisorder",
+        "desyncRepeats": 11,
+        "fooling": "ts",
+        "fakeTlsMod": "rnd,dupsid,sni=www.google.com",
+        "splitPos": 1,
+        "splitPosStr": "1"
+      }
+    ]
+  },
+  {
+    "id": "alt4-badseq",
+    "name": "ALT4 (BadSeq)",
+    "description": "Uses badseq fooling with high increment value. Aggressive approach for strong DPI.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["windows", "linux"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fooling": "badseq",
+        "badseqIncrement": 1000,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake,multisplit",
+        "desyncRepeats": 6,
+        "fooling": "badseq",
+        "badseqIncrement": 1000,
+        "fakeTls": "tls_clienthello_www_google_com.bin",
+        "splitSeqovlPattern": "tls_clienthello_www_google_com.bin"
+      }
+    ]
+  },
+  {
+    "id": "tpws-split",
+    "name": "TPWS Split (TCP only)",
+    "description": "TCP split at position 1. Simple and effective for basic DPI.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "split",
+        "splitPos": 1
+      }
+    ]
+  },
+  {
+    "id": "tpws-disorder",
+    "name": "TPWS Disorder (TCP only)",
+    "description": "Sends TCP segments out of order. Effective against stateful DPI.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1
+      }
+    ]
+  },
+  {
+    "id": "tpws-disorder-hostcase",
+    "name": "TPWS Disorder + HostCase",
+    "description": "Disorder with Host header manipulation (host: instead of Host:). Good combo for HTTP+HTTPS.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1,
+        "tpwsOpts": ["--hostcase", "--domcase"]
+      }
+    ]
+  },
+  {
+    "id": "tpws-split-tlsrec",
+    "name": "TPWS Split + TLS Record",
+    "description": "Split at SNI extension + TLS record splitting. Advanced TLS DPI bypass.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "443",
+        "l7Protocol": "tls",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "split",
+        "splitPosStr": "sniext+1",
+        "tpwsOpts": ["--tlsrec=sniext+1"]
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80",
+        "l7Protocol": "http",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "split",
+        "splitPos": 1,
+        "tpwsOpts": ["--hostcase", "--hostdot"]
+      }
+    ]
+  },
+  {
+    "id": "tpws-disorder-oob",
+    "name": "TPWS Disorder + OOB",
+    "description": "Disorder with out-of-band byte injection. Aggressive approach for strong DPI.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1,
+        "tpwsOpts": ["--oob"]
+      }
+    ]
+  },
+  {
+    "id": "tpws-full",
+    "name": "TPWS Full (Recommended for macOS)",
+    "description": "Combined approach: disorder + hostcase + domcase + TLS record splitting. Best chance on macOS.",
+    "tcpPorts": "80,443",
+    "udpPorts": "",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["macos", "android", "ios"],
+    "filters": [
+      {
+        "protocol": "tcp",
+        "ports": "443",
+        "l7Protocol": "tls",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1,
+        "tpwsOpts": ["--tlsrec=sniext+1", "--domcase"]
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80",
+        "l7Protocol": "http",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 2,
+        "tpwsOpts": ["--hostcase", "--hostdot", "--domcase"]
+      }
+    ]
+  },
+  {
+    "id": "general-alt11",
+    "name": "General ALT11 (macOS+UDP)",
+    "description": "Adapted from ALT11 Windows strategy. UDP: fake QUIC with 11 repeats. TCP: disorder + hostcase + domcase + TLS record splitting via tpws. Best combined TCP+UDP bypass for macOS.",
+    "tcpPorts": "80,443,2053,2083,2087,2096,8443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["macos"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 11,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "l7Protocol": "discord,stun",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "ipset": "ipset-all.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "fake",
+        "desyncRepeats": 11,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "tcp",
+        "ports": "443,2053,2083,2087,2096,8443",
+        "l7Protocol": "tls",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1,
+        "tpwsOpts": ["--tlsrec=sniext+1", "--domcase"]
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80",
+        "l7Protocol": "http",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "ipsetExclude": "ipset-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 2,
+        "tpwsOpts": ["--hostcase", "--hostdot", "--domcase"]
+      },
+      {
+        "protocol": "tcp",
+        "ports": "443",
+        "hostlist": "list-google.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1,
+        "tpwsOpts": ["--tlsrec=sniext+1", "--domcase"]
+      }
+    ]
+  }
+]
