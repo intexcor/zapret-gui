@@ -454,5 +454,63 @@
         "tpwsOpts": ["--tlsrec=sniext+1", "--domcase"]
       }
     ]
+  },
+  {
+    "id": "mobile-full",
+    "name": "Mobile Full (TCP+UDP)",
+    "description": "TCP split + QUIC fake for mobile. YouTube, Discord web and QUIC.",
+    "tcpPorts": "80,443",
+    "udpPorts": "443",
+    "gameFilterEnabled": false,
+    "supportedPlatforms": ["android", "ios"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "split",
+        "splitPos": 1
+      }
+    ]
+  },
+  {
+    "id": "mobile-discord",
+    "name": "Mobile Discord (TCP+UDP+Voice)",
+    "description": "Discord voice + web + YouTube. QUIC fake + game port bypass.",
+    "tcpPorts": "80,443",
+    "udpPorts": "443,19294-19344,50000-50100",
+    "gameFilterEnabled": true,
+    "supportedPlatforms": ["android", "ios"],
+    "filters": [
+      {
+        "protocol": "udp",
+        "ports": "443",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6,
+        "fakeQuic": "quic_initial_www_google_com.bin"
+      },
+      {
+        "protocol": "udp",
+        "ports": "19294-19344,50000-50100",
+        "desyncMethod": "fake",
+        "desyncRepeats": 6
+      },
+      {
+        "protocol": "tcp",
+        "ports": "80,443",
+        "hostlist": "list-general.txt",
+        "hostlistExclude": "list-exclude.txt",
+        "desyncMethod": "disorder",
+        "splitPos": 1
+      }
+    ]
   }
 ]

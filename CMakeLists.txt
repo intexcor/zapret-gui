@@ -118,6 +118,24 @@ if(APPLE AND NOT IOS)
     add_subdirectory(tools/udp-bypass)
 endif()
 
+# --- VPN packet processor JNI library (Android only) ---
+if(ANDROID)
+    add_library(vpn-processor SHARED
+        src/dpi/dpi_bypass.h
+        src/dpi/dpi_bypass.c
+        platform/android/jni/vpn_processor.c
+        platform/android/jni/tcp_relay.h
+        platform/android/jni/tcp_relay.c
+        platform/android/jni/udp_relay.h
+        platform/android/jni/udp_relay.c
+    )
+    target_include_directories(vpn-processor PRIVATE
+        ${CMAKE_CURRENT_SOURCE_DIR}/src/dpi
+        ${CMAKE_CURRENT_SOURCE_DIR}/platform/android/jni
+    )
+    target_link_libraries(vpn-processor PRIVATE log)
+endif()
+
 # --- Copy resources to build directory ---
 add_custom_command(TARGET zapret-gui POST_BUILD
     COMMAND ${CMAKE_COMMAND} -E copy_directory

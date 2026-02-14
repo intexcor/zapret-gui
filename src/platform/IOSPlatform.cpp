@@ -2,6 +2,7 @@
 #include <QCoreApplication>
 #include <QDir>
 #include <QStandardPaths>
+#include <QSettings>
 
 IOSPlatform::IOSPlatform(QObject *parent)
     : PlatformHelper(parent)
@@ -12,7 +13,8 @@ QString IOSPlatform::platformName() const { return "ios"; }
 
 QString IOSPlatform::binaryPath() const
 {
-    return QCoreApplication::applicationDirPath() + "/tpws";
+    // No external binary needed — DPI bypass is built into PacketProcessor
+    return {};
 }
 
 QString IOSPlatform::binaryDownloadUrl() const
@@ -21,44 +23,53 @@ QString IOSPlatform::binaryDownloadUrl() const
     return {};
 }
 
-QStringList IOSPlatform::buildArgs(const Strategy &strategy) const
+QStringList IOSPlatform::buildArgs(const Strategy & /*strategy*/) const
 {
-    QStringList args;
+    // No-op: tpws is no longer used. Packet processing is done in Swift.
+    return {};
+}
 
-    args << "--port" << QString::number(m_socksPort);
-    args << "--bind-addr=127.0.0.1";
+bool IOSPlatform::setupFirewall(const Strategy &strategy)
+{
+    // Write strategy config to shared app group UserDefaults
+    // The PacketTunnelProvider reads these settings on start/restart
+    QSettings settings(QStringLiteral("group.com.zapretgui"),
+                       QSettings::NativeFormat);
 
-    // Only TCP strategies, same as macOS
+    int splitPos = 1;
+    bool useDisorder = false;
+    int fakeTtl = 3;
+    int fakeRepeats = 6;
+    QString fakeQuicFile;
+
     for (const auto &filter : strategy.filters) {
-        if (filter.protocol == "udp")
-            continue;
-
-        if (!filter.hostlist.isEmpty()) {
-            QString docsDir = QStandardPaths::writableLocation(QStandardPaths::DocumentsLocation);
-            args << ("--hostlist=" + docsDir + "/" + filter.hostlist);
-        }
-
-        QString method = filter.desyncMethod;
-        if (method.contains("split") || method.contains("disorder")) {
-            args << "--split-pos=1";
-            if (method.contains("disorder"))
-                args << "--disorder";
+        if (filter.protocol == "udp") {
+            if (!filter.fakeQuic.isEmpty())
+                fakeQuicFile = filter.fakeQuic;
+            if (filter.desyncRepeats > 0)
+                fakeRepeats = filter.desyncRepeats;
+        } else if (filter.protocol == "tcp") {
+            if (filter.splitPos > 0)
+                splitPos = filter.splitPos;
+            if (filter.desyncMethod.contains("disorder"))
+                useDisorder = true;
         }
     }
 
-    return args;
-}
+    settings.setValue(QStringLiteral("splitPos"), splitPos);
+    settings.setValue(QStringLiteral("useDisorder"), useDisorder);
+    settings.setValue(QStringLiteral("fakeTTL"), fakeTtl);
+    settings.setValue(QStringLiteral("fakeRepeats"), fakeRepeats);
+    settings.setValue(QStringLiteral("fakeQuicFile"), fakeQuicFile);
+    settings.sync();
 
-bool IOSPlatform::setupFirewall(const Strategy & /*strategy*/)
-{
-    // iOS uses PacketTunnelProvider — traffic is captured through the VPN tunnel
     // The tunnel is started via NetworkExtension framework from Swift code
     return true;
 }
 
 bool IOSPlatform::teardownFirewall()
 {
-    // Stop the VPN tunnel
+    // Stop the VPN tunnel — handled by Swift side
     return true;
 }
 

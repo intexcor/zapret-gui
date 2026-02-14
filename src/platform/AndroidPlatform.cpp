@@ -16,64 +16,80 @@ QString AndroidPlatform::platformName() const { return "android"; }
 
 QString AndroidPlatform::binaryPath() const
 {
-    // On Android, tpws is bundled as a native library in the APK
-    return QCoreApplication::applicationDirPath() + "/libtpws.so";
+    // No external binary needed — DPI bypass is built into the VPN processor JNI lib
+    return {};
 }
 
 QString AndroidPlatform::binaryDownloadUrl() const
 {
-    return "https://github.com/Flowseal/zapret-discord-youtube/raw/main/bin/android-arm64/tpws";
+    // No binary to download — everything is bundled in libvpn-processor.so
+    return {};
 }
 
-QStringList AndroidPlatform::buildArgs(const Strategy &strategy) const
+QStringList AndroidPlatform::buildArgs(const Strategy & /*strategy*/) const
 {
-    QStringList args;
-
-    // tpws in VPN mode — binds to localhost as SOCKS proxy
-    args << "--port" << QString::number(m_socksPort);
-    args << "--bind-addr=127.0.0.1";
-
-    // Only TCP strategies work with tpws
-    for (const auto &filter : strategy.filters) {
-        if (filter.protocol == "udp")
-            continue;
-
-        if (!filter.hostlist.isEmpty()) {
-            // On Android, lists are in app's files directory
-            QString dataDir = QCoreApplication::applicationDirPath() + "/../files";
-            args << ("--hostlist=" + dataDir + "/" + filter.hostlist);
-        }
-
-        // Translate to tpws-compatible options
-        QString method = filter.desyncMethod;
-        if (method.contains("split") || method.contains("disorder")) {
-            args << "--split-pos=1";
-            if (method.contains("disorder"))
-                args << "--disorder";
-        }
-    }
-
-    return args;
+    // No-op: tpws is no longer used. Packet processing is done in JNI.
+    return {};
 }
 
-bool AndroidPlatform::setupFirewall(const Strategy & /*strategy*/)
+bool AndroidPlatform::setupFirewall(const Strategy &strategy)
 {
-    // On Android, traffic routing is handled by VpnService
-    // No iptables needed — the VPN TUN interface captures all traffic
 #ifdef Q_OS_ANDROID
     QJniObject activity = QJniObject::callStaticObjectMethod(
         "org/qtproject/qt/android/QtNative",
         "activity",
         "()Landroid/app/Activity;");
 
-    if (activity.isValid()) {
-        // Call Java method to prepare VPN
-        QJniObject::callStaticMethod<void>(
-            "com/zapretgui/ZapretVpnService",
-            "prepare",
-            "(Landroid/content/Context;)V",
-            activity.object());
+    if (!activity.isValid())
+        return false;
+
+    // Extract strategy parameters for the VPN processor
+    int fakeTtl = 3;
+    int fakeRepeats = 6;
+    QString fakeQuicPath;
+    int splitPos = 1;
+    bool useDisorder = false;
+
+    for (const auto &filter : strategy.filters) {
+        if (filter.protocol == "udp") {
+            // UDP filter → extract QUIC fake injection params
+            if (!filter.fakeQuic.isEmpty()) {
+                QString dataDir = QCoreApplication::applicationDirPath() + "/../files/fake";
+                fakeQuicPath = dataDir + "/" + filter.fakeQuic;
+            }
+            if (filter.desyncRepeats > 0)
+                fakeRepeats = filter.desyncRepeats;
+        } else if (filter.protocol == "tcp") {
+            // TCP filter → extract split/disorder params
+            if (filter.splitPos > 0)
+                splitPos = filter.splitPos;
+            if (filter.desyncMethod.contains("disorder"))
+                useDisorder = true;
+        }
     }
+
+    // Prepare VPN permission
+    QJniObject::callStaticMethod<void>(
+        "com/zapretgui/ZapretVpnService",
+        "prepare",
+        "(Landroid/content/Context;)V",
+        activity.object());
+
+    // Start VPN service with strategy config
+    QJniObject fakePathJni = QJniObject::fromString(fakeQuicPath);
+
+    QJniObject::callStaticMethod<void>(
+        "com/zapretgui/ZapretVpnService",
+        "start",
+        "(Landroid/content/Context;IILjava/lang/String;IZ)V",
+        activity.object(),
+        (jint)fakeTtl,
+        (jint)fakeRepeats,
+        fakePathJni.object<jstring>(),
+        (jint)splitPos,
+        (jboolean)useDisorder);
+#else
+    Q_UNUSED(strategy);
 #endif
     return true;
 }
@@ -91,8 +107,6 @@ bool AndroidPlatform::teardownFirewall()
 
 bool AndroidPlatform::installService(const Strategy & /*strategy*/)
 {
-    // On Android, "service" means the VPN stays connected
-    // This is handled by the VpnService foreground notification
     return true;
 }
 

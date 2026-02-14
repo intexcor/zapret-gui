@@ -12,6 +12,7 @@ import android.os.ParcelFileDescriptor;
 import android.util.Log;
 
 import java.io.File;
+import java.io.FileInputStream;
 import java.io.IOException;
 
 public class ZapretVpnService extends VpnService {
@@ -19,9 +20,25 @@ public class ZapretVpnService extends VpnService {
     private static final String CHANNEL_ID = "zapret_vpn";
     private static final int NOTIFICATION_ID = 1;
 
+    /* Intent extras for strategy configuration */
+    public static final String EXTRA_FAKE_TTL = "fake_ttl";
+    public static final String EXTRA_FAKE_REPEATS = "fake_repeats";
+    public static final String EXTRA_FAKE_QUIC_PATH = "fake_quic_path";
+    public static final String EXTRA_SPLIT_POS = "split_pos";
+    public static final String EXTRA_USE_DISORDER = "use_disorder";
+
     private ParcelFileDescriptor mTunFd;
-    private Process mTpwsProcess;
     private static ZapretVpnService sInstance;
+
+    static {
+        System.loadLibrary("vpn-processor");
+    }
+
+    /* Native methods implemented in vpn_processor.c */
+    private native void nativeStart(int tunFd, byte[] fakePayload,
+                                    int fakeTtl, int fakeRepeats,
+                                    int splitPos, boolean useDisorder);
+    private native void nativeStop();
 
     @Override
     public void onCreate() {
@@ -39,7 +56,23 @@ public class ZapretVpnService extends VpnService {
         }
 
         startForeground(NOTIFICATION_ID, buildNotification());
-        startVpn();
+
+        /* Extract strategy parameters from intent */
+        int fakeTtl = 3;
+        int fakeRepeats = 6;
+        String fakeQuicPath = null;
+        int splitPos = 1;
+        boolean useDisorder = false;
+
+        if (intent != null) {
+            fakeTtl = intent.getIntExtra(EXTRA_FAKE_TTL, 3);
+            fakeRepeats = intent.getIntExtra(EXTRA_FAKE_REPEATS, 6);
+            fakeQuicPath = intent.getStringExtra(EXTRA_FAKE_QUIC_PATH);
+            splitPos = intent.getIntExtra(EXTRA_SPLIT_POS, 1);
+            useDisorder = intent.getBooleanExtra(EXTRA_USE_DISORDER, false);
+        }
+
+        startVpn(fakeTtl, fakeRepeats, fakeQuicPath, splitPos, useDisorder);
         return START_STICKY;
     }
 
@@ -50,9 +83,10 @@ public class ZapretVpnService extends VpnService {
         super.onDestroy();
     }
 
-    private void startVpn() {
+    private void startVpn(int fakeTtl, int fakeRepeats, String fakeQuicPath,
+                          int splitPos, boolean useDisorder) {
         try {
-            // Create TUN interface
+            /* Create TUN interface */
             Builder builder = new Builder();
             builder.setSession("Zapret DPI Bypass");
             builder.addAddress("10.120.0.1", 30);
@@ -61,7 +95,7 @@ public class ZapretVpnService extends VpnService {
             builder.addDnsServer("8.8.8.8");
             builder.setMtu(1500);
 
-            // Exclude our own app from VPN to avoid loops
+            /* Exclude our own app from VPN to avoid loops */
             try {
                 builder.addDisallowedApplication(getPackageName());
             } catch (Exception e) {
@@ -74,56 +108,52 @@ public class ZapretVpnService extends VpnService {
                 return;
             }
 
-            // Start tpws as SOCKS proxy
-            startTpws();
+            /* Load fake QUIC payload from file */
+            byte[] fakePayload = null;
+            if (fakeQuicPath != null && !fakeQuicPath.isEmpty()) {
+                fakePayload = loadFakePayload(fakeQuicPath);
+            }
 
-            Log.i(TAG, "VPN started successfully");
+            /* Start native packet processor in background thread */
+            nativeStart(mTunFd.getFd(), fakePayload,
+                       fakeTtl, fakeRepeats, splitPos, useDisorder);
+
+            Log.i(TAG, "VPN started: split=" + splitPos + " disorder=" + useDisorder
+                    + " fakeTtl=" + fakeTtl + " fakeRepeats=" + fakeRepeats);
         } catch (Exception e) {
             Log.e(TAG, "Failed to start VPN", e);
             stopVpn();
         }
     }
 
-    private void startTpws() {
+    private byte[] loadFakePayload(String path) {
         try {
-            String nativeLibDir = getApplicationInfo().nativeLibraryDir;
-            String tpwsPath = nativeLibDir + "/libtpws.so";
-
-            File tpwsBinary = new File(tpwsPath);
-            if (!tpwsBinary.exists()) {
-                Log.e(TAG, "tpws binary not found at: " + tpwsPath);
-                return;
+            File file = new File(path);
+            if (!file.exists() || file.length() == 0 || file.length() > 4096) {
+                Log.w(TAG, "Invalid fake payload: " + path);
+                return null;
             }
-
-            // Ensure executable
-            tpwsBinary.setExecutable(true);
-
-            String dataDir = getFilesDir().getAbsolutePath();
-
-            ProcessBuilder pb = new ProcessBuilder(
-                tpwsPath,
-                "--port", "1080",
-                "--bind-addr=127.0.0.1",
-                "--hostlist=" + dataDir + "/list-general.txt",
-                "--split-pos=1"
-            );
-
-            pb.redirectErrorStream(true);
-            mTpwsProcess = pb.start();
-            Log.i(TAG, "tpws started with PID: " + mTpwsProcess);
+            byte[] data = new byte[(int) file.length()];
+            try (FileInputStream fis = new FileInputStream(file)) {
+                int read = fis.read(data);
+                if (read != data.length) {
+                    Log.w(TAG, "Short read on fake payload: " + read + "/" + data.length);
+                    return null;
+                }
+            }
+            Log.i(TAG, "Loaded fake payload: " + path + " (" + data.length + " bytes)");
+            return data;
         } catch (IOException e) {
-            Log.e(TAG, "Failed to start tpws", e);
+            Log.e(TAG, "Failed to load fake payload: " + path, e);
+            return null;
         }
     }
 
     private void stopVpn() {
-        // Stop tpws
-        if (mTpwsProcess != null) {
-            mTpwsProcess.destroy();
-            mTpwsProcess = null;
-        }
+        /* Stop native processor (blocks until thread exits) */
+        nativeStop();
 
-        // Close TUN
+        /* Close TUN */
         if (mTunFd != null) {
             try {
                 mTunFd.close();
@@ -174,17 +204,23 @@ public class ZapretVpnService extends VpnService {
             .build();
     }
 
-    // Static methods called from C++ via JNI
+    /* Static methods called from C++ via JNI */
     public static void prepare(Context context) {
         Intent intent = VpnService.prepare(context);
         if (intent != null) {
-            // Need to request VPN permission from user
             context.startActivity(intent);
         }
     }
 
-    public static void start(Context context) {
+    public static void start(Context context, int fakeTtl, int fakeRepeats,
+                             String fakeQuicPath, int splitPos, boolean useDisorder) {
         Intent intent = new Intent(context, ZapretVpnService.class);
+        intent.putExtra(EXTRA_FAKE_TTL, fakeTtl);
+        intent.putExtra(EXTRA_FAKE_REPEATS, fakeRepeats);
+        intent.putExtra(EXTRA_FAKE_QUIC_PATH, fakeQuicPath);
+        intent.putExtra(EXTRA_SPLIT_POS, splitPos);
+        intent.putExtra(EXTRA_USE_DISORDER, useDisorder);
+
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
             context.startForegroundService(intent);
         } else {

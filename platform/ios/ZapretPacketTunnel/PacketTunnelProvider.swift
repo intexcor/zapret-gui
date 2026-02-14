@@ -3,7 +3,7 @@ import os.log
 
 class PacketTunnelProvider: NEPacketTunnelProvider {
 
-    private var tpwsProcess: Process?
+    private var packetProcessor: PacketProcessor?
     private let logger = Logger(subsystem: "com.zapretgui.tunnel", category: "PacketTunnel")
 
     override func startTunnel(options: [String: NSObject]? = nil) async throws {
@@ -21,77 +21,73 @@ class PacketTunnelProvider: NEPacketTunnelProvider {
 
         try await setTunnelNetworkSettings(settings)
 
-        // Start tpws
-        startTpws()
+        // Load DPI bypass config from shared app group
+        let config = loadConfig()
 
-        logger.info("Packet tunnel started successfully")
+        // Start packet processor
+        let processor = PacketProcessor()
+        processor.start(packetFlow: packetFlow, config: config)
+        packetProcessor = processor
+
+        logger.info("Packet tunnel started: split=\(config.splitPos) disorder=\(config.useDisorder) fakeTTL=\(config.fakeTTL) fakeRepeats=\(config.fakeRepeats)")
     }
 
     override func stopTunnel(with reason: NEProviderStopReason) async {
         logger.info("Stopping Zapret packet tunnel, reason: \(String(describing: reason))")
-        stopTpws()
+        packetProcessor?.stop()
+        packetProcessor = nil
     }
 
     override func handleAppMessage(_ messageData: Data) async -> Data? {
-        // Handle messages from the main app (e.g., strategy changes)
         if let command = String(data: messageData, encoding: .utf8) {
             logger.info("Received app message: \(command)")
 
             if command == "restart" {
-                stopTpws()
-                startTpws()
+                packetProcessor?.stop()
+                let config = loadConfig()
+                let processor = PacketProcessor()
+                processor.start(packetFlow: packetFlow, config: config)
+                packetProcessor = processor
             }
         }
         return nil
     }
 
-    private func startTpws() {
-        guard let tpwsPath = Bundle.main.path(forResource: "tpws", ofType: nil) else {
-            logger.error("tpws binary not found in bundle")
-            return
+    private func loadConfig() -> PacketProcessor.DPIConfig {
+        var config = PacketProcessor.DPIConfig()
+
+        guard let defaults = UserDefaults(suiteName: "group.com.zapretgui") else {
+            logger.warning("Cannot access shared app group defaults, using defaults")
+            return config
         }
 
-        // Get the container directory for config files
-        let containerURL = FileManager.default.containerURL(
-            forSecurityApplicationGroupIdentifier: "group.com.zapretgui"
-        )
-        let listsDir = containerURL?.appendingPathComponent("lists").path ?? ""
+        config.splitPos = defaults.integer(forKey: "splitPos")
+        if config.splitPos == 0 { config.splitPos = 1 }
 
-        let process = Process()
-        process.executableURL = URL(fileURLWithPath: tpwsPath)
-        process.arguments = [
-            "--port", "1080",
-            "--bind-addr=127.0.0.1",
-            "--hostlist=\(listsDir)/list-general.txt",
-            "--split-pos=1"
-        ]
+        config.useDisorder = defaults.bool(forKey: "useDisorder")
 
-        let pipe = Pipe()
-        process.standardOutput = pipe
-        process.standardError = pipe
+        let fakeTTL = defaults.integer(forKey: "fakeTTL")
+        config.fakeTTL = fakeTTL > 0 ? Int32(fakeTTL) : 3
 
-        pipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                self?.logger.info("tpws: \(output)")
+        let fakeRepeats = defaults.integer(forKey: "fakeRepeats")
+        config.fakeRepeats = fakeRepeats > 0 ? fakeRepeats : 6
+
+        // Load fake QUIC payload
+        if let fakeQuicFile = defaults.string(forKey: "fakeQuicFile"),
+           !fakeQuicFile.isEmpty {
+            let containerURL = FileManager.default.containerURL(
+                forSecurityApplicationGroupIdentifier: "group.com.zapretgui"
+            )
+            if let fakeURL = containerURL?.appendingPathComponent("fake/\(fakeQuicFile)") {
+                do {
+                    config.fakePayload = try Data(contentsOf: fakeURL)
+                    logger.info("Loaded fake payload: \(fakeQuicFile) (\(config.fakePayload?.count ?? 0) bytes)")
+                } catch {
+                    logger.error("Failed to load fake payload \(fakeQuicFile): \(error)")
+                }
             }
         }
 
-        do {
-            try process.run()
-            tpwsProcess = process
-            logger.info("tpws started with PID \(process.processIdentifier)")
-        } catch {
-            logger.error("Failed to start tpws: \(error.localizedDescription)")
-        }
-    }
-
-    private func stopTpws() {
-        if let process = tpwsProcess, process.isRunning {
-            process.terminate()
-            process.waitUntilExit()
-            logger.info("tpws stopped")
-        }
-        tpwsProcess = nil
+        return config
     }
 }

@@ -19,6 +19,4 @@ public:
     bool removeService() override;
     bool elevatePrivileges() override;
 
-private:
-    int m_socksPort = 1080;
 };
